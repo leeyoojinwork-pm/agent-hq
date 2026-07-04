@@ -207,6 +207,8 @@ const AGENTS = [
   task:"요구사항을 디자인 의사결정으로 변환 중",output:"OMD-PLAN.md",load:91,model:"opus",accent:"amber"},
  {id:"orch",name:"Orchestrator",origin:"Claude",role:"워크플로 지휘",team:"Control",status:"active",floor:0,slot:1,
   task:"전문 에이전트 라우팅 · handoff 기록",output:".orchestrator.log",load:84,model:"opus",accent:"green"},
+ {id:"pm",name:"PM Fable",origin:"Claude",role:"프로덕트 매니저",team:"Control",status:"active",floor:0,slot:2,
+  task:"MVP 확정 · 마일스톤 추적 · Opus 인수인계 준비",output:"docs/ROADMAP.md",load:88,model:"fable",accent:"orange"},
  {id:"critic",name:"Critic",origin:"Codex",role:"근본 원인 비평",team:"Review",status:"review",floor:1,slot:0,
   task:"표면 패치 반려, 저수준 재진입 지시",output:"critique.md",load:62,model:"opus",accent:"red"},
  {id:"designer",name:"Designer Review",origin:"Claude",role:"브랜드 QA",team:"Review",status:"review",floor:1,slot:1,
