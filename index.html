@@ -594,6 +594,7 @@ const LOGT={
   idle:["대기 중 · 큐 비어 있음","다음 호출 대기","heartbeat OK"]
 };
 function pushLog(){
+  if(typeof live!=="undefined"&&live) return;   // 라이브 모드에선 가짜 로그 중단
   const a=AGENTS[Math.floor(Math.random()*AGENTS.length)];
   const t=LOGT[a.status][Math.floor(Math.random()*LOGT[a.status].length)]
     .replace("{o}",a.output).replace("{n}",1+Math.floor(Math.random()*7))
@@ -652,6 +653,39 @@ fetch("agents.json",{cache:"no-store"})
   .then(r=>r.ok?r.json():null)
   .then(d=>{ if(d) applyData(d); })
   .catch(()=>{});                    // file:// 등 실패 시 조용히 폴백
+
+/* ============================================================
+   LIVE STATUS 폴링 — serve.mjs 있을 때만 (M2)
+============================================================ */
+let live=false;                      // 라이브 모드면 가짜 로그 중단
+function fmtTime(t){ return new Date(t).toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"}); }
+function pollStatus(){
+  fetch("/api/status",{cache:"no-store"})
+    .then(r=>r.ok?r.json():null)
+    .then(d=>{
+      if(!d||!Array.isArray(d.agents)) return;
+      live=true;
+      let changed=false;
+      for(const s of d.agents){
+        const a=AGENTS.find(x=>x.id===s.id);
+        if(a&&a.status!==s.status){ a.status=s.status; changed=true; }
+      }
+      if(changed){ renderStats(); renderDetail(); }
+      if(Array.isArray(d.events)&&d.events.length){
+        const log=document.getElementById("log");
+        const top=log.firstChild&&log.firstChild.dataset?Number(log.firstChild.dataset.t):0;
+        d.events.filter(e=>e.time>top).reverse().forEach(e=>{
+          const li=document.createElement("li"); li.dataset.t=e.time;
+          li.innerHTML=`<span class="t">${fmtTime(e.time)}</span> <b style="color:#ffd166">LIVE</b> ${e.text}`;
+          log.prepend(li);
+        });
+        while(log.children.length>32) log.lastChild.remove();
+      }
+    })
+    .catch(()=>{});                  // 서버 없으면 조용히 (Pages/file:// 무해)
+}
+pollStatus();
+setInterval(pollStatus,10000);
 </script>
 </body>
 </html>
