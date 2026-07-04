@@ -58,11 +58,24 @@ localStorage 키 `agent-hq-v2:*` — selected, filter, crt.
 - Galmuri 픽셀 폰트 (jsDelivr CDN). 오프라인이면 monospace 폴백 — 깨지지 않음.
 - 그 외 0. 프레임워크/빌드 없음.
 
+## M1/M2 추가분 (2026-07-04 2차)
+
+- **데이터 주입**: `AGENTS`/`FLOORS`는 이제 `let`. 부팅 시 `agents.json` fetch → 성공하면
+  `applyData(d)` → `initScene()`이 층 수(NF), GROUND, 캔버스 H를 재계산. 실패하면 내장 데이터 폴백.
+- **initScene()**: 캔버스 리사이즈(→ imageSmoothingEnabled 재설정 필수), hits 재계산,
+  선택 상태 검증, 엘리베이터 리셋, 통계/티커/사이드 재렌더를 담당. 데이터가 바뀌면 반드시 이걸 호출.
+- **동적 층 규칙**: H = 44 + NF*42 + 34. 기계실 판정은 층 라벨의 /ENGINE/i 매칭(isEngine).
+- **콘솔 테스트**: `window.applyData({floors,agents})`로 브라우저에서 직접 주입 가능.
+- **라이브 상태(M2)**: `/api/status` 10초 폴링. 성공하면 `live=true`가 되어 가짜 로그 생성 중단,
+  상태만 갱신(레이아웃 불변). 서버가 없으면 catch로 조용히 무시.
+- **serve.mjs**: 정적 서빙 + 상태 판정. `~/.claude/projects/**/*.jsonl` 최근 20개의 tail 64KB에서
+  에이전트 이름/id 매칭 → 최근 5분 active / 30분 review / 그 외 idle. 8초 캐시.
+
 ## 알려진 한계
 
-- 데이터가 하드코딩 (실연동은 docs/OPUS-BRIEF.md 참고)
 - 모바일 세로 화면에서 캔버스가 작아짐 — 핀치줌으로 커버, 전용 세로 레이아웃은 미구현
 - 말풍선은 선택된 에이전트 1개만 표시 (의도된 절제)
+- 상태 판정은 로그 텍스트 매칭 휴리스틱 — 동명이인 에이전트가 있으면 오탐 가능
 
 ## 검증 기록
 
