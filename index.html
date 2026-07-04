@@ -194,7 +194,7 @@ const ACC = {amber:"#ffd166",green:"#49d17d",red:"#ff6470",blue:"#58a7ff",
              pink:"#ff7ad9",purple:"#a98cff",yellow:"#ffe66d",orange:"#ffad5c"};
 const ORIGIN_COLOR = {Claude:"#ffad5c", Codex:"#58a7ff"};
 
-const FLOORS = [
+let FLOORS = [
   {id:"5F", label:"CONTROL",        kr:"지휘부"},
   {id:"4F", label:"REVIEW",         kr:"검수실"},
   {id:"3F", label:"DESIGN",         kr:"디자인실"},
@@ -202,7 +202,7 @@ const FLOORS = [
   {id:"1F", label:"ENGINE ROOM",    kr:"기계실"},
 ];
 
-const AGENTS = [
+let AGENTS = [
  {id:"master",name:"OMD Master",origin:"Claude",role:"총괄 디자이너",team:"Control",status:"active",floor:0,slot:0,
   task:"요구사항을 디자인 의사결정으로 변환 중",output:"OMD-PLAN.md",load:91,model:"opus",accent:"amber"},
  {id:"orch",name:"Orchestrator",origin:"Claude",role:"워크플로 지휘",team:"Control",status:"active",floor:0,slot:1,
@@ -253,18 +253,16 @@ const matches=a=> state.filter==="All"||a.origin===state.filter||a.status===stat
 /* ============================================================
    CANVAS SCENE
 ============================================================ */
-const W=384,H=288,SC=3;
+const W=384,SC=3;
+let H=288, GROUND=254, NF=5;       // 층 수에 따라 initScene()에서 재계산
 const cv=document.getElementById("cv");
-cv.width=W*SC; cv.height=H*SC;
 const ctx=cv.getContext("2d");
-const low=document.createElement("canvas"); low.width=W; low.height=H;
+const low=document.createElement("canvas");
 const g=low.getContext("2d");
-ctx.imageSmoothingEnabled=false;
 
 const BX=24, BR=360;               // building left/right
 const SHX=328, SHW=24;             // elevator shaft
 const ROOF=38, F_TOP=44, FH=42;    // floors
-const GROUND=254;
 const fTop=i=>F_TOP+i*FH;
 const fBot=i=>F_TOP+(i+1)*FH-3;    // slab top = char ground
 
@@ -288,10 +286,9 @@ function deskGeom(a){
   const cxp=36+(a.slot+0.5)*(usable/n);
   return {x:Math.round(cxp-22), fb:fBot(a.floor), cx:Math.round(cxp)};
 }
-const hits=AGENTS.map(a=>{const d=deskGeom(a);
-  return {id:a.id, x:(d.x-4)*SC, y:(d.fb-34)*SC, w:52*SC, h:38*SC};});
-
-let frame=0, elev={y:fTop(2)+3, target:2, wait:0};
+let hits=[];
+let frame=0, elev={y:fTop(1)+4, target:1, wait:0};
+const isEngine=i=>FLOORS[i]&&/ENGINE/i.test(FLOORS[i].label||"");
 
 function p(x,y,w,h,c){ g.fillStyle=c; g.fillRect(x,y,w,h); }
 
@@ -325,34 +322,35 @@ function drawShell(){
   p(140,34,4,4,"#241f38"); p(242,34,4,4,"#241f38");
 }
 function drawFloors(){
-  for(let i=0;i<5;i++){
+  for(let i=0;i<NF;i++){
     const t=fTop(i);
-    p(30,t,SHX-32,FH-3,INTERIOR[i]);                    // interior
-    // back-wall windows (sky glow)
-    if(i<4) for(let x=44;x<SHX-30;x+=46){ p(x,t+5,18,10,"#141a33"); p(x+2,t+7,6,3,"#26304f"); }
+    p(30,t,SHX-32,FH-3,INTERIOR[i%INTERIOR.length]);    // interior
+    // back-wall windows (sky glow) — 기계실 제외
+    if(!isEngine(i)) for(let x=44;x<SHX-30;x+=46){ p(x,t+5,18,10,"#141a33"); p(x+2,t+7,6,3,"#26304f"); }
     p(BX-2,t+FH-3,BR-BX+4,3,"#120f1c");                 // slab
     p(BX-2,t,8,FH,"#221c33"); p(SHX+SHW,t,BR-SHX-SHW+2,FH,"#221c33"); // walls
     // floor sign plate
     p(34,t+3,58,9,"#0d0a16"); g.strokeStyle="#3a3355"; g.strokeRect(34.5,t+3.5,57,8);
+    // engine room extras (서버랙 + 파이프)
+    if(isEngine(i)){
+      for(let k=0;k<3;k++){ const rx=250+k*24;
+        p(rx,t+8,16,28,"#141828"); g.strokeStyle="#2c3350"; g.strokeRect(rx+.5,t+8.5,15,27);
+        for(let l=0;l<5;l++){ const on=((frame>>2)+l+k)%3!==0;
+          p(rx+3,t+11+l*5,3,2,on?"#49d17d":"#1c2438");
+          p(rx+9,t+11+l*5,3,2,((frame>>2)+l*2+k)%4?"#1c2438":"#ff6470"); } }
+      p(30,t+2,SHX-32,2,"#11141f");
+      for(let x=40;x<SHX-20;x+=34) p(x,t+2,2,4,"#11141f");
+    }
   }
-  // engine room extras (i=4)
-  const t4=fTop(4);
-  for(let k=0;k<3;k++){ const rx=250+k*24;
-    p(rx,t4+8,16,28,"#141828"); g.strokeStyle="#2c3350"; g.strokeRect(rx+.5,t4+8.5,15,27);
-    for(let l=0;l<5;l++){ const on=((frame>>2)+l+k)%3!==0;
-      p(rx+3,t4+11+l*5,3,2,on?"#49d17d":"#1c2438");
-      p(rx+9,t4+11+l*5,3,2,((frame>>2)+l*2+k)%4?"#1c2438":"#ff6470"); } }
-  p(30,t4+2,SHX-32,2,"#11141f");                        // pipe
-  for(let x=40;x<SHX-20;x+=34) p(x,t4+2,2,4,"#11141f");
 }
 function drawElevator(){
   p(SHX,F_TOP,SHW,GROUND-F_TOP,"#0d0b16");
   g.strokeStyle="#2c2744"; g.strokeRect(SHX+.5,F_TOP+.5,SHW-1,GROUND-F_TOP-1);
-  for(let i=1;i<5;i++){ g.fillStyle="#1b1730"; g.fillRect(SHX+1,fTop(i)-1,SHW-2,1); }
+  for(let i=1;i<NF;i++){ g.fillStyle="#1b1730"; g.fillRect(SHX+1,fTop(i)-1,SHW-2,1); }
   // cab logic
   if(elev.wait>0) elev.wait--;
   else{ const ty=fTop(elev.target)+4;
-    if(Math.abs(elev.y-ty)<1){ elev.y=ty; elev.wait=110; elev.target=Math.floor(Math.random()*5); }
+    if(Math.abs(elev.y-ty)<1){ elev.y=ty; elev.wait=110; elev.target=Math.floor(Math.random()*NF); }
     else elev.y+=(ty>elev.y?0.6:-0.6); }
   p(SHX+9,F_TOP,1,elev.y-F_TOP,"#3a3355"); p(SHX+14,F_TOP,1,elev.y-F_TOP,"#3a3355");
   p(SHX+3,elev.y,SHW-6,34,"#252038"); g.strokeStyle="#4a4370"; g.strokeRect(SHX+3.5,elev.y+.5,SHW-7,33);
@@ -429,7 +427,7 @@ function hiText(){
   ctx.fillStyle="#6a6f8c"; ctx.fillText("NIGHT SHIFT — "+AGENTS.filter(a=>a.status==="active").length+" RUNNING",8*SC,10*SC);
   // floor labels
   ctx.textAlign="left";
-  for(let i=0;i<5;i++){ const t=fTop(i);
+  for(let i=0;i<NF;i++){ const t=fTop(i);
     ctx.fillStyle="#8b8fa8"; ctx.font="9px Galmuri9, monospace";
     ctx.fillText(FLOORS[i].id+" "+FLOORS[i].label,37*SC,(t+10)*SC); }
   // agent name tags + origin dot
@@ -496,7 +494,7 @@ function drawBubble(a,d){
 let last=0;
 function loop(ts){
   if(ts-last>=90){ last=ts; frame++;
-    g.clearRect(0,0,W,H);
+    g.clearRect(0,0,low.width,low.height);
     drawSky(); drawCity(); drawShell(); drawFloors(); drawElevator();
     AGENTS.forEach((a,i)=>drawAgent(a,i));
     drawStreet();
@@ -558,16 +556,20 @@ function renderDetail(){
     <div class="drow"><span class="k">FLOOR</span><span class="v">${FLOORS[a.floor].id} · ${FLOORS[a.floor].kr}</span></div>
     <div class="drow"><span class="k">TASK</span><span class="v">${a.task}</span></div>
     <div class="drow"><span class="k">OUTPUT</span><span class="v" style="color:${acc}">${a.output}</span></div>
+    ${a.source?`<div class="drow"><span class="k">SOURCE</span><span class="v" style="font-size:10px">${a.source}
+      <button class="fbtn" style="margin-left:6px;padding:2px 6px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${String(a.source).replace(/'/g,"\\'")}')">복사</button></span></div>`:""}
     <div class="drow"><span class="k">LOAD</span><span class="v">${a.load}%
       <div class="loadbar ${a.load>75?"hot":""}"><i style="width:${a.load}%"></i></div></span></div>`;
 }
 function renderSide(){ renderFilters(); renderDetail(); }
 
 /* stats + clock */
-document.getElementById("s-total").textContent=AGENTS.length;
-document.getElementById("s-active").textContent=AGENTS.filter(a=>a.status==="active").length;
-document.getElementById("s-codex").textContent=AGENTS.filter(a=>a.origin==="Codex").length;
-document.getElementById("s-claude").textContent=AGENTS.filter(a=>a.origin==="Claude").length;
+function renderStats(){
+  document.getElementById("s-total").textContent=AGENTS.length;
+  document.getElementById("s-active").textContent=AGENTS.filter(a=>a.status==="active").length;
+  document.getElementById("s-codex").textContent=AGENTS.filter(a=>a.origin==="Codex").length;
+  document.getElementById("s-claude").textContent=AGENTS.filter(a=>a.origin==="Claude").length;
+}
 setInterval(()=>{ document.getElementById("clock").innerHTML=
   new Date().toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"})+" <span>KST</span>";},1000);
 
@@ -579,11 +581,11 @@ crtBtn.onclick=()=>{ state.crt=!state.crt; save(); applyCrt(); };
 applyCrt();
 
 /* ticker */
-(function(){
+function renderTicker(){
   const seg=AGENTS.map(a=>`<b>${a.name}</b> ▸ <i>${a.output}</i>`).join(" &nbsp;·&nbsp; ");
   document.getElementById("ticker").innerHTML=
     seg+" &nbsp;·&nbsp; "+seg; // duplicate for seamless loop
-})();
+}
 
 /* log feed */
 const LOGT={
@@ -606,7 +608,50 @@ function pushLog(){
 for(let i=0;i<6;i++) pushLog();
 setInterval(pushLog,2300);
 
-renderSide();
+/* ============================================================
+   BOOT — agents.json fetch + 폴백 (M1)
+============================================================ */
+function initScene(){
+  NF=FLOORS.length;
+  GROUND=F_TOP+NF*FH;
+  H=GROUND+34;
+  low.width=W; low.height=H;
+  cv.width=W*SC; cv.height=H*SC;
+  ctx.imageSmoothingEnabled=false;   // 캔버스 리사이즈 시 리셋되므로 재설정
+  hits=AGENTS.map(a=>{const d=deskGeom(a);
+    return {id:a.id, x:(d.x-4)*SC, y:(d.fb-34)*SC, w:52*SC, h:38*SC};});
+  if(!AGENTS.some(a=>a.id===state.selected)) state.selected=AGENTS[0].id;
+  elev.y=fTop(0)+4; elev.target=Math.min(1,NF-1); elev.wait=40;
+  renderStats(); renderTicker(); renderSide();
+}
+function applyData(d){
+  try{
+    if(!d || !Array.isArray(d.agents) || !d.agents.length
+         || !Array.isArray(d.floors) || !d.floors.length) return false;
+    const keys=Object.keys(ACC);
+    d.agents.forEach((a,i)=>{
+      a.status=["active","review","idle"].includes(a.status)?a.status:"idle";
+      a.accent=ACC[a.accent]?a.accent:keys[i%keys.length];
+      a.model=a.model||"sonnet"; a.task=a.task||"대기 중"; a.output=a.output||"-";
+      a.origin=a.origin==="Codex"?"Codex":"Claude";
+      a.load=typeof a.load==="number"?Math.max(0,Math.min(100,a.load)):50;
+      a.floor=Math.max(0,Math.min(d.floors.length-1,a.floor|0)); a.slot=a.slot|0;
+      a.role=a.role||"에이전트"; a.name=String(a.name||a.id||"agent");
+      a.id=String(a.id||"agent-"+i);
+    });
+    FLOORS=d.floors.map(f=>({id:f.id||"?F", label:String(f.label||"FLOOR"), kr:f.kr||f.label||""}));
+    AGENTS=d.agents;
+    initScene();
+    return true;
+  }catch(e){ return false; }
+}
+window.applyData=applyData;         // 콘솔/테스트에서 주입 가능
+
+initScene();                         // 내장 데이터로 즉시 렌더
+fetch("agents.json",{cache:"no-store"})
+  .then(r=>r.ok?r.json():null)
+  .then(d=>{ if(d) applyData(d); })
+  .catch(()=>{});                    // file:// 등 실패 시 조용히 폴백
 </script>
 </body>
 </html>
