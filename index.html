@@ -256,9 +256,12 @@ const matches=a=> state.filter==="All"||a.origin===state.filter||a.status===stat
 const W=384,SC=3;
 let H=288, GROUND=254, NF=5;       // 층 수에 따라 initScene()에서 재계산
 const cv=document.getElementById("cv");
+cv.width=W*SC; cv.height=H*SC;      // 안전 기본값 (initScene에서 재설정)
 const ctx=cv.getContext("2d");
 const low=document.createElement("canvas");
+low.width=W; low.height=H;
 const g=low.getContext("2d");
+ctx.imageSmoothingEnabled=false;
 
 const BX=24, BR=360;               // building left/right
 const SHX=328, SHW=24;             // elevator shaft
@@ -594,7 +597,7 @@ const LOGT={
   idle:["대기 중 · 큐 비어 있음","다음 호출 대기","heartbeat OK"]
 };
 function pushLog(){
-  if(typeof live!=="undefined"&&live) return;   // 라이브 모드에선 가짜 로그 중단
+  if(window.__live) return;                     // 라이브 모드에선 가짜 로그 중단
   const a=AGENTS[Math.floor(Math.random()*AGENTS.length)];
   const t=LOGT[a.status][Math.floor(Math.random()*LOGT[a.status].length)]
     .replace("{o}",a.output).replace("{n}",1+Math.floor(Math.random()*7))
@@ -657,14 +660,14 @@ fetch("agents.json",{cache:"no-store"})
 /* ============================================================
    LIVE STATUS 폴링 — serve.mjs 있을 때만 (M2)
 ============================================================ */
-let live=false;                      // 라이브 모드면 가짜 로그 중단
+window.__live=false;                 // 라이브 모드면 가짜 로그 중단
 function fmtTime(t){ return new Date(t).toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"}); }
 function pollStatus(){
   fetch("/api/status",{cache:"no-store"})
     .then(r=>r.ok?r.json():null)
     .then(d=>{
       if(!d||!Array.isArray(d.agents)) return;
-      live=true;
+      window.__live=true;
       let changed=false;
       for(const s of d.agents){
         const a=AGENTS.find(x=>x.id===s.id);
