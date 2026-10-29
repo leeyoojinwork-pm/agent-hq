@@ -50,8 +50,10 @@ node hq.mjs report writer  --status idle --team Content --origin LangGraph
 node hq.mjs serve
 ```
 
-브라우저에서 **https://leeyoojinwork-pm.github.io/agent-hq/?src=local** 을 엽니다.
-(Safari는 https 페이지에서 localhost 접속을 막습니다 → http://127.0.0.1:4173 을 직접 여세요.)
+브라우저에서 **http://127.0.0.1:4173** 을 엽니다. (서버가 뷰어 화면을 받아와 직접 보여줍니다. 모든 브라우저에서 동작)
+
+Chrome이라면 https://leeyoojinwork-pm.github.io/agent-hq/?src=local 로도 볼 수 있습니다. "로컬 네트워크 접근" 허용 팝업이 뜨면 허용하세요.
+Safari나 일부 앱 내장 브라우저는 https 페이지에서 localhost 접속을 막으므로 위 http 주소를 쓰세요.
 
 서버가 떠 있으면 에이전트 코드에서 HTTP로 바로 보고할 수 있습니다.
 
@@ -129,7 +131,7 @@ node hq.mjs push 내아이디/my-agents --watch 60  # 60초마다 바뀐 경우�
 
 | 증상 | 확인 |
 |---|---|
-| `?src=local`이 연결 실패 | `node hq.mjs serve`가 켜져 있는지. Safari면 http://127.0.0.1:4173 직접 접속. Chrome의 "로컬 네트워크 접근" 권한 팝업 허용 |
+| `?src=local`이 연결 실패 | `node hq.mjs serve`가 켜져 있는지. 브라우저가 https→localhost를 막는 경우(Safari, `ERR_BLOCKED_BY_CLIENT`)엔 http://127.0.0.1:4173 직접 접속 |
 | `?gh=`가 HTTP 404 | 리포가 public인지, 파일이 루트에 `agent-hq.json` 이름으로 있는지, 브랜치/경로 지정이 맞는지 |
 | 화면에 반영이 늦음 | GitHub raw 캐시(최대 5분). 실시간이 필요하면 serve 사용 |
 | 검증 실패 | `node hq.mjs validate` 로 어떤 필드가 문제인지 확인 |
