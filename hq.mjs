@@ -209,13 +209,27 @@ function tail(path, size) {
     return buf.toString("utf8");
   } catch { return ""; }
 }
-/** report가 없는(=updatedAt이 로그보다 오래된) Claude/Codex 에이전트에만 로그 활동 시각을 덧씌운다 */
+/** 로그에서 해당 에이전트를 실제로 호출한(`"subagent_type":"<name>"`) 마지막 시각.
+ *  이름이 텍스트에 나오기만 한 경우(에이전트 목록, 대화 내용)는 세지 않는다. */
+function lastInvocation(text, name) {
+  if (!name) return 0;
+  const key = JSON.stringify(name);
+  let last = 0;
+  for (const line of text.split("\n")) {
+    if (!line.includes(key) || !/"subagent_type"\s*:/.test(line)) continue;
+    if (!new RegExp('"subagent_type"\\s*:\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(line)) continue;
+    const ts = Date.parse((line.match(/"timestamp"\s*:\s*"([^"]+)"/) || [])[1]);
+    if (ts > last) last = ts;
+  }
+  return last;
+}
+/** report가 없는(=updatedAt이 호출 시각보다 오래된) Claude 에이전트에만 실제 호출 시각을 덧씌운다 */
 function overlayLogs(d, root) {
   const logs = recentLogs(root).map((l) => ({ ...l, text: tail(l.path, l.size) }));
   for (const a of d.agents) {
-    if (a.origin !== "Claude" && a.origin !== "Codex") continue;
+    if (a.origin !== "Claude") continue;
     let last = 0;
-    for (const l of logs) if (l.mtime > last && ((a.name && l.text.includes(a.name)) || l.text.includes(a.id))) last = l.mtime;
+    for (const l of logs) last = Math.max(last, lastInvocation(l.text, a.name));
     const reported = a.updatedAt ? Date.parse(a.updatedAt) : 0;
     if (last && last > reported) { a.status = "active"; a.updatedAt = new Date(last).toISOString(); }
   }
@@ -233,6 +247,13 @@ export function serve({ port = 4173, file, root = homedir(), token = "", allow =
   const allowed = new Set([viewerOrigin, ...allow]);
   const isLocal = (o) => /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(o);
   let cache = { at: 0, body: null };
+  let viewerHtml = null;                         // hq.mjs만 받은 경우: 호스팅 뷰어를 가져와 같은 origin(http)으로 서빙
+  const remoteViewer = async () => {
+    if (viewerHtml) return viewerHtml;
+    const r = await fetch(VIEWER, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error("viewer " + r.status);
+    return (viewerHtml = await r.text());
+  };
 
   const server = createServer((req, res) => {
     const origin = req.headers.origin || "";
@@ -285,8 +306,11 @@ export function serve({ port = 4173, file, root = homedir(), token = "", allow =
     const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
     const base = resolve(staticDir), p = resolve(base, rel);
     if (rel === "index.html" && !existsSync(p)) {
-      res.writeHead(302, { location: `${VIEWER}?src=${encodeURIComponent(`http://127.0.0.1:${port}`)}` });
-      return res.end();
+      remoteViewer().then((html) => send(200, html, MIME[".html"])).catch(() => {
+        res.writeHead(302, { location: `${VIEWER}?src=${encodeURIComponent(`http://127.0.0.1:${port}`)}` });
+        res.end();
+      });
+      return;
     }
     if (!p.startsWith(base + "/") || p.slice(base.length).split("/").some((seg) => seg.startsWith("."))
         || !existsSync(p) || !statSync(p).isFile())
@@ -396,8 +420,8 @@ export async function main() {
     const allow = o["allow-origin"] && o["allow-origin"] !== true ? String(o["allow-origin"]).split(",") : [];
     serve({ port, file, token, allow, staticDir: here, logs: !o["no-logs"],
       root: o.root ? resolve(o.root) : homedir() }).on("listening", () => {
-      console.log(`Agent HQ 로컬 서버: http://127.0.0.1:${port}`);
-      console.log(`  호스팅 뷰어로 보기: ${VIEWER}?src=local${port !== 4173 ? `&port=${port}` : ""}`);
+      console.log(`Agent HQ 로컬 서버: http://127.0.0.1:${port}   ← 이 주소를 브라우저로 여세요`);
+      console.log(`  (Chrome은 호스팅 뷰어도 가능: ${VIEWER}?src=local${port !== 4173 ? `&port=${port}` : ""})`);
       console.log(`  상태 보고: POST http://127.0.0.1:${port}/api/report  {"id":"writer","status":"active","task":"..."}`);
       if (token) console.log("  (POST에 Authorization: Bearer <token> 필요)");
     });
