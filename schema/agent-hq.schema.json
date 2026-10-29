@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leeyoojinwork-pm.github.io/agent-hq/schema/agent-hq.schema.json",
+  "title": "Agent HQ building (v1)",
+  "description": "멀티에이전트 하나(=빌딩 하나)의 상태. hq.mjs가 쓰고, 뷰어가 읽는다. floors를 생략하면 뷰어가 team 기준으로 층을 자동 배정한다.",
+  "type": "object",
+  "required": ["agents"],
+  "properties": {
+    "version": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "hq": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "owner": { "type": "string" }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 64, "description": "빌딩 안에서 유일" },
+          "name": { "type": "string", "maxLength": 60 },
+          "origin": { "type": "string", "maxLength": 32, "description": "Claude, Codex, LangGraph, CrewAI, AutoGen, Custom … 자유" },
+          "team": { "type": "string", "maxLength": 32, "description": "같은 team끼리 같은 층. Control/Review/Design/Research/Content/Engineering/General 순으로 위층" },
+          "role": { "type": "string" },
+          "status": { "enum": ["active", "review", "idle"] },
+          "task": { "type": "string", "description": "지금 하는 일 한 줄 (공개됨)" },
+          "output": { "type": "string" },
+          "model": { "type": "string", "maxLength": 32 },
+          "accent": { "enum": ["amber", "green", "red", "blue", "pink", "purple", "yellow", "orange"] },
+          "load": { "type": "number", "minimum": 0, "maximum": 100 },
+          "updatedAt": { "type": "string", "format": "date-time", "description": "있으면 active→5분 후 review→30분 후 idle로 자동 감쇠" },
+          "floor": { "type": "integer", "description": "floors를 직접 줄 때만 사용" },
+          "slot": { "type": "integer", "minimum": 0, "maximum": 3 }
+        }
+      }
+    },
+    "floors": {
+      "type": "array",
+      "description": "선택. 생략 권장 (자동 배정)",
+      "items": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "kr": { "type": "string" } }
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "required": ["time", "text"],
+        "properties": {
+          "time": { "type": ["number", "string"], "description": "epoch ms 또는 ISO" },
+          "agent": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    }
+  }
+}

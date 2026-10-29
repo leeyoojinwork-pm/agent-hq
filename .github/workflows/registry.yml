@@ -1,0 +1,65 @@
+name: registry
+
+# 로비 등록 PR 검증 + main 반영 시 registry/index.json 재생성
+on:
+  pull_request:
+    paths: ["registry/**"]
+  push:
+    branches: [main]
+    paths: ["registry/**", "tools/registry.mjs", "hq.mjs"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registry-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate registry entries in this PR
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          ASSOC: ${{ github.event.pull_request.author_association }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files=$(git diff --name-only --diff-filter=AM "$BASE"...HEAD -- registry/ | grep -v '^registry/README.md$' || true)
+          case "$ASSOC" in
+            OWNER|MEMBER|COLLABORATOR)
+              files=$(echo "$files" | grep -v '^registry/index.json$' || true)
+              [ -z "$files" ] && { echo "검증할 등록 파일 없음"; exit 0; }
+              node tools/registry.mjs check --fetch $files ;;
+            *)
+              [ -z "$files" ] && { echo "검증할 등록 파일 없음"; exit 0; }
+              node tools/registry.mjs check --author "$AUTHOR" --fetch $files ;;
+          esac
+
+  build-index:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/registry.mjs build
+      - name: Commit index.json if changed
+        run: |
+          if git diff --quiet -- registry/index.json; then echo "변경 없음"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add registry/index.json
+          git commit -m "chore(registry): rebuild index.json"
+          git push

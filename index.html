@@ -136,6 +136,19 @@
   .log li{list-style:none; color:#a9adc4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .log li .t{color:#565b76} .log li b{font-weight:normal}
   .log li:first-child{color:var(--text)}
+  /* connect */
+  .conn{display:flex; gap:6px}
+  .conn input{flex:1; min-width:0; font-family:var(--fp); font-size:10px; letter-spacing:.5px;
+    padding:6px 8px; background:#0a0c16; color:var(--text); border:2px solid var(--line)}
+  .conn input:focus{outline:none; border-color:var(--amber)}
+  .csrc{font-size:9px; color:var(--dim); margin-top:8px; line-height:1.6; word-break:break-all}
+  .csrc b{font-weight:normal}
+  .csrc .ok{color:var(--green)} .csrc .warn{color:var(--amber)} .csrc .err{color:var(--red)}
+  .lobby{margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:150px; overflow-y:auto}
+  .lobby a{font-size:10px; color:#a9adc4; text-decoration:none; padding:4px 6px; border:1px dashed var(--line);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .lobby a:hover,.lobby a.on{color:var(--amber); border-color:var(--amber)}
+  .lobby a i{font-style:normal; color:#565b76}
   footer{padding:10px 18px 18px; text-align:center; font-size:9px; color:#565b76; letter-spacing:2px}
 </style>
 </head>
@@ -146,7 +159,7 @@
     <div class="logo-mark"></div>
     <div>
       <h1>AGENT <em>HQ</em></h1>
-      <p>CODEX × CLAUDE · NIGHT SHIFT · BLDG CROSS-SECTION</p>
+      <p id="hqsub">CODEX × CLAUDE · NIGHT SHIFT · BLDG CROSS-SECTION</p>
     </div>
   </div>
   <div class="hstats">
@@ -154,6 +167,7 @@
     <span class="chip c-act"><b id="s-active">0</b>WORKING</span>
     <span class="chip c-codex"><b id="s-codex">0</b>CODEX</span>
     <span class="chip c-claude"><b id="s-claude">0</b>CLAUDE</span>
+    <span class="chip" id="s-src"><b>●</b>DEMO</span>
     <span class="clock" id="clock">--:--:-- <span>KST</span></span>
     <button class="hbtn" id="crtBtn">CRT ON</button>
   </div>
@@ -172,6 +186,15 @@
 
   <aside class="side">
     <section class="panel">
+      <div class="ptitle">CONNECT</div>
+      <form class="conn" id="connForm">
+        <input id="connIn" placeholder="owner/repo · URL · local" autocomplete="off" spellcheck="false">
+        <button class="fbtn" type="submit">연결</button>
+      </form>
+      <div class="csrc" id="connSrc"></div>
+      <div class="lobby" id="lobby"></div>
+    </section>
+    <section class="panel">
       <div class="ptitle">FILTER</div>
       <div class="filters" id="filters"></div>
     </section>
@@ -183,7 +206,7 @@
   </aside>
 </div>
 
-<footer>AGENT HQ v2 · PIXEL CROSS-SECTION BUILD · NO FRAMEWORK, ONE FILE</footer>
+<footer>AGENT HQ v3 · CONNECT YOUR OWN AGENTS · <a href="https://github.com/leeyoojinwork-pm/agent-hq/blob/main/docs/CONNECT.md" style="color:#8b8fa8">CONNECT GUIDE</a></footer>
 
 <script>
 "use strict";
@@ -193,6 +216,13 @@
 const ACC = {amber:"#ffd166",green:"#49d17d",red:"#ff6470",blue:"#58a7ff",
              pink:"#ff7ad9",purple:"#a98cff",yellow:"#ffe66d",orange:"#ffad5c"};
 const ORIGIN_COLOR = {Claude:"#ffad5c", Codex:"#58a7ff"};
+/** 외부 데이터는 전부 신뢰하지 않는다 — innerHTML에 넣기 전 반드시 esc() */
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function originColor(o){
+  if(ORIGIN_COLOR[o]) return ORIGIN_COLOR[o];
+  let h=0; for(const c of String(o)) h=(h*31+c.charCodeAt(0))|0;
+  const k=Object.keys(ACC); return ACC[k[Math.abs(h)%k.length]];
+}
 
 let FLOORS = [
   {id:"5F", label:"CONTROL",        kr:"지휘부"},
@@ -432,17 +462,17 @@ function hiText(){
   ctx.textAlign="left";
   for(let i=0;i<NF;i++){ const t=fTop(i);
     ctx.fillStyle="#8b8fa8"; ctx.font="9px Galmuri9, monospace";
-    ctx.fillText(FLOORS[i].id+" "+FLOORS[i].label,37*SC,(t+10)*SC); }
+    ctx.fillText((FLOORS[i].id+" "+FLOORS[i].label).slice(0,28),37*SC,(t+10)*SC); }
   // agent name tags + origin dot
   for(const a of AGENTS){
     const {cx,fb}=deskGeom(a); const sel=a.id===state.selected;
     ctx.font="10px Galmuri9, monospace"; ctx.textAlign="center";
-    const label=a.name;
+    const label=a.name.length>14?a.name.slice(0,13)+"…":a.name;
     const tw=ctx.measureText(label).width;
     const tx=cx*SC, ty=(fb-2)*SC;
     ctx.fillStyle=sel?"rgba(50,40,8,.92)":"rgba(5,6,12,.85)";
     ctx.fillRect(tx-tw/2-8,ty-10,tw+14,13);
-    ctx.fillStyle=ORIGIN_COLOR[a.origin];
+    ctx.fillStyle=originColor(a.origin);
     ctx.fillRect(tx-tw/2-5,ty-6,4,4);
     ctx.fillStyle=sel?"#ffd166":(matches(a)?"#cfd2e8":"#565b76");
     ctx.fillText(label,tx+3,ty);
@@ -531,12 +561,17 @@ document.addEventListener("keydown",e=>{
 /* ============================================================
    SIDE PANELS
 ============================================================ */
-const FILTERS=[["All","전체"],["Codex","CODEX"],["Claude","CLAUDE"],
-               ["active","작업 중"],["review","검토 중"],["idle","대기"]];
+function filterList(){
+  const origins=[...new Set(AGENTS.map(a=>a.origin))].slice(0,6);
+  return [["All","전체"],...origins.map(o=>[o,o.toUpperCase()]),
+          ["active","작업 중"],["review","검토 중"],["idle","대기"]];
+}
 function renderFilters(){
-  document.getElementById("filters").innerHTML=FILTERS.map(([v,l])=>
-    `<button class="fbtn ${state.filter===v?"on":""}" data-f="${v}">${l}</button>`).join("");
-  document.querySelectorAll(".fbtn").forEach(b=>b.onclick=()=>{
+  const list=filterList();
+  if(!list.some(([v])=>v===state.filter)) state.filter="All";
+  document.getElementById("filters").innerHTML=list.map(([v,l])=>
+    `<button class="fbtn ${state.filter===v?"on":""}" data-f="${esc(v)}">${esc(l)}</button>`).join("");
+  document.querySelectorAll("#filters .fbtn").forEach(b=>b.onclick=()=>{
     state.filter=b.dataset.f; save(); renderFilters(); });
 }
 const STATUS_KR={active:"작업 중",review:"검토 중",idle:"대기"};
@@ -545,24 +580,31 @@ function renderDetail(){
   document.getElementById("detail").innerHTML=`
     <div class="ptitle">AGENT DETAIL</div>
     <div class="dhead">
-      <div class="davatar" style="color:${acc};border-color:${acc}">${a.name[0]}</div>
+      <div class="davatar" style="color:${acc};border-color:${acc}">${esc(a.name[0])}</div>
       <div>
-        <div class="dname" style="color:${acc}">${a.name}</div>
+        <div class="dname" style="color:${acc}">${esc(a.name)}</div>
         <div class="dtags">
-          <span class="tag origin-${a.origin}">${a.origin.toUpperCase()}</span>
-          <span class="tag">${a.model.toUpperCase()}</span>
+          <span class="tag" style="color:${originColor(a.origin)};border-color:${originColor(a.origin)}">${esc(a.origin.toUpperCase())}</span>
+          <span class="tag">${esc(a.model.toUpperCase())}</span>
           <span class="tag st-${a.status}">${STATUS_KR[a.status]}</span>
         </div>
       </div>
     </div>
-    <div class="drow"><span class="k">ROLE</span><span class="v">${a.role}</span></div>
-    <div class="drow"><span class="k">FLOOR</span><span class="v">${FLOORS[a.floor].id} · ${FLOORS[a.floor].kr}</span></div>
-    <div class="drow"><span class="k">TASK</span><span class="v">${a.task}</span></div>
-    <div class="drow"><span class="k">OUTPUT</span><span class="v" style="color:${acc}">${a.output}</span></div>
-    ${a.source?`<div class="drow"><span class="k">SOURCE</span><span class="v" style="font-size:10px">${a.source}
-      <button class="fbtn" style="margin-left:6px;padding:2px 6px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${String(a.source).replace(/'/g,"\\'")}')">복사</button></span></div>`:""}
+    <div class="drow"><span class="k">ROLE</span><span class="v">${esc(a.role)}</span></div>
+    <div class="drow"><span class="k">FLOOR</span><span class="v">${esc(FLOORS[a.floor].id)} · ${esc(FLOORS[a.floor].kr)}</span></div>
+    <div class="drow"><span class="k">TASK</span><span class="v">${esc(a.task)}</span></div>
+    <div class="drow"><span class="k">OUTPUT</span><span class="v" style="color:${acc}">${esc(a.output)}</span></div>
+    ${a.updatedAt?`<div class="drow"><span class="k">UPDATED</span><span class="v">${esc(fmtAgo(a.updatedAt))}</span></div>`:""}
+    ${a.source?`<div class="drow"><span class="k">SOURCE</span><span class="v" style="font-size:10px">${esc(a.source)}
+      <button class="fbtn" id="srcCopy" style="margin-left:6px;padding:2px 6px">복사</button></span></div>`:""}
     <div class="drow"><span class="k">LOAD</span><span class="v">${a.load}%
       <div class="loadbar ${a.load>75?"hot":""}"><i style="width:${a.load}%"></i></div></span></div>`;
+  const cp=document.getElementById("srcCopy");
+  if(cp) cp.onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(a.source);
+}
+function fmtAgo(iso){
+  const m=Math.round((Date.now()-Date.parse(iso))/60000);
+  return isNaN(m)?"-":m<1?"방금":m<60?m+"분 전":m<1440?Math.round(m/60)+"시간 전":Math.round(m/1440)+"일 전";
 }
 function renderSide(){ renderFilters(); renderDetail(); }
 
@@ -572,6 +614,8 @@ function renderStats(){
   document.getElementById("s-active").textContent=AGENTS.filter(a=>a.status==="active").length;
   document.getElementById("s-codex").textContent=AGENTS.filter(a=>a.origin==="Codex").length;
   document.getElementById("s-claude").textContent=AGENTS.filter(a=>a.origin==="Claude").length;
+  document.querySelector(".c-codex").style.display=AGENTS.some(a=>a.origin==="Codex")?"":"none";
+  document.querySelector(".c-claude").style.display=AGENTS.some(a=>a.origin==="Claude")?"":"none";
 }
 setInterval(()=>{ document.getElementById("clock").innerHTML=
   new Date().toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"})+" <span>KST</span>";},1000);
@@ -585,7 +629,7 @@ applyCrt();
 
 /* ticker */
 function renderTicker(){
-  const seg=AGENTS.map(a=>`<b>${a.name}</b> ▸ <i>${a.output}</i>`).join(" &nbsp;·&nbsp; ");
+  const seg=AGENTS.map(a=>`<b>${esc(a.name)}</b> ▸ <i>${esc(a.output)}</i>`).join(" &nbsp;·&nbsp; ");
   document.getElementById("ticker").innerHTML=
     seg+" &nbsp;·&nbsp; "+seg; // duplicate for seamless loop
 }
@@ -604,7 +648,7 @@ function pushLog(){
     .replace("{p}",20+Math.floor(Math.random()*80));
   const time=new Date().toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"});
   const li=document.createElement("li");
-  li.innerHTML=`<span class="t">${time}</span> <b style="color:${ACC[a.accent]}">${a.name}</b> ${t}`;
+  li.innerHTML=`<span class="t">${time}</span> <b style="color:${ACC[a.accent]}">${esc(a.name)}</b> ${esc(t)}`;
   const log=document.getElementById("log");
   log.prepend(li);
   while(log.children.length>32) log.lastChild.remove();
@@ -628,67 +672,197 @@ function initScene(){
   elev.y=fTop(0)+4; elev.target=Math.min(1,NF-1); elev.wait=40;
   renderStats(); renderTicker(); renderSide();
 }
+const TEAM_ORDER=["Control","Review","Design","Research","Content","Engineering","General"];
+const ACTIVE_MS=5*60*1000, REVIEW_MS=30*60*1000;
+/** updatedAt이 있으면 5분/30분 룰로 상태를 자연 감쇠 (보고가 끊긴 에이전트가 계속 '작업 중'으로 남지 않게) */
+function decay(a){
+  if(!a.updatedAt) return a.status;
+  const age=Date.now()-Date.parse(a.updatedAt);
+  if(isNaN(age)) return a.status;
+  if(a.status==="active") return age<ACTIVE_MS?"active":age<REVIEW_MS?"review":"idle";
+  if(a.status==="review") return age<REVIEW_MS?"review":"idle";
+  return a.status;
+}
+/** floors가 없으면 team 기준으로 층당 4명 자동 배정 (위층부터) */
+function autoFloors(agents){
+  const groups=new Map(TEAM_ORDER.map(t=>[t,[]]));
+  for(const a of agents){ if(!groups.has(a.team)) groups.set(a.team,[]); groups.get(a.team).push(a); }
+  const floors=[];
+  for(const [team,members] of groups) for(let i=0;i<members.length;i+=4){
+    const fi=floors.length;
+    floors.push({label:team.toUpperCase(), kr:team});
+    members.slice(i,i+4).forEach((a,s)=>{ a.floor=fi; a.slot=s; });
+  }
+  floors.forEach((f,i)=>f.id=(floors.length-i)+"F");
+  return floors;
+}
+function normalize(d){
+  if(!d || !Array.isArray(d.agents) || !d.agents.length) return null;
+  const keys=Object.keys(ACC), seen=new Set();
+  const agents=d.agents.slice(0,200).filter(a=>a&&typeof a==="object").map((a,i)=>{
+    const s=(v,n,f)=>typeof v==="string"&&v.trim()?v.slice(0,n):f;
+    const b={
+      id:s(a.id,64,"agent-"+i), name:s(a.name,60,s(a.id,60,"agent")),
+      origin:s(a.origin,32,"Custom"), team:s(a.team,32,"General"), role:s(a.role,60,"에이전트"),
+      status:["active","review","idle"].includes(a.status)?a.status:"idle",
+      task:s(a.task,140,"대기 중"), output:s(a.output,120,"-"), model:s(a.model,32,"-"),
+      accent:ACC[a.accent]?a.accent:keys[i%keys.length],
+      load:typeof a.load==="number"?Math.max(0,Math.min(100,Math.round(a.load))):50,
+      floor:a.floor, slot:a.slot,
+      updatedAt:typeof a.updatedAt==="string"?a.updatedAt:null,
+      source:s(a.source,300,null),
+    };
+    if(seen.has(b.id)) b.id+="-"+i;
+    seen.add(b.id);
+    b.status=decay(b);
+    return b;
+  });
+  let floors;
+  if(Array.isArray(d.floors)&&d.floors.length){
+    floors=d.floors.slice(0,12).map(f=>({id:String(f.id||"?F").slice(0,4), label:String(f.label||"FLOOR").slice(0,24), kr:String(f.kr||f.label||"").slice(0,24)}));
+    agents.forEach(a=>{ a.floor=Math.max(0,Math.min(floors.length-1,a.floor|0)); a.slot=Math.max(0,Math.min(3,a.slot|0)); });
+  } else floors=autoFloors(agents);
+  const name=d.hq&&typeof d.hq.name==="string"?d.hq.name.slice(0,60):null;
+  const events=Array.isArray(d.events)?d.events.slice(0,50):[];
+  return {floors,agents,name,events};
+}
 function applyData(d){
   try{
-    if(!d || !Array.isArray(d.agents) || !d.agents.length
-         || !Array.isArray(d.floors) || !d.floors.length) return false;
-    const keys=Object.keys(ACC);
-    d.agents.forEach((a,i)=>{
-      a.status=["active","review","idle"].includes(a.status)?a.status:"idle";
-      a.accent=ACC[a.accent]?a.accent:keys[i%keys.length];
-      a.model=a.model||"sonnet"; a.task=a.task||"대기 중"; a.output=a.output||"-";
-      a.origin=a.origin==="Codex"?"Codex":"Claude";
-      a.load=typeof a.load==="number"?Math.max(0,Math.min(100,a.load)):50;
-      a.floor=Math.max(0,Math.min(d.floors.length-1,a.floor|0)); a.slot=a.slot|0;
-      a.role=a.role||"에이전트"; a.name=String(a.name||a.id||"agent");
-      a.id=String(a.id||"agent-"+i);
-    });
-    FLOORS=d.floors.map(f=>({id:f.id||"?F", label:String(f.label||"FLOOR"), kr:f.kr||f.label||""}));
-    AGENTS=d.agents;
+    const n=normalize(d); if(!n) return false;
+    FLOORS=n.floors; AGENTS=n.agents;
     initScene();
     return true;
   }catch(e){ return false; }
 }
 window.applyData=applyData;         // 콘솔/테스트에서 주입 가능
 
-initScene();                         // 내장 데이터로 즉시 렌더
-fetch("agents.json",{cache:"no-store"})
-  .then(r=>r.ok?r.json():null)
-  .then(d=>{ if(d) applyData(d); })
-  .catch(()=>{});                    // file:// 등 실패 시 조용히 폴백
-
 /* ============================================================
-   LIVE STATUS 폴링 — serve.mjs 있을 때만 (M2)
+   SOURCE — 누구의 빌딩을 볼지 (v3)
+   ?gh=owner/repo[@branch][:path]   GitHub 리포의 agent-hq.json
+   ?src=local[&port=4173]            내 PC의 `node hq.mjs serve`
+   ?src=https://.../agent-hq.json    임의 URL (CORS 허용 필요)
 ============================================================ */
-window.__live=false;                 // 라이브 모드면 가짜 로그 중단
-function fmtTime(t){ return new Date(t).toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"}); }
-function pollStatus(){
-  fetch("/api/status",{cache:"no-store"})
-    .then(r=>r.ok?r.json():null)
-    .then(d=>{
-      if(!d||!Array.isArray(d.agents)) return;
-      window.__live=true;
-      let changed=false;
-      for(const s of d.agents){
-        const a=AGENTS.find(x=>x.id===s.id);
-        if(a&&a.status!==s.status){ a.status=s.status; changed=true; }
-      }
-      if(changed){ renderStats(); renderDetail(); }
-      if(Array.isArray(d.events)&&d.events.length){
-        const log=document.getElementById("log");
-        const top=log.firstChild&&log.firstChild.dataset?Number(log.firstChild.dataset.t):0;
-        d.events.filter(e=>e.time>top).reverse().forEach(e=>{
-          const li=document.createElement("li"); li.dataset.t=e.time;
-          li.innerHTML=`<span class="t">${fmtTime(e.time)}</span> <b style="color:#ffd166">LIVE</b> ${e.text}`;
-          log.prepend(li);
-        });
-        while(log.children.length>32) log.lastChild.remove();
-      }
-    })
-    .catch(()=>{});                  // 서버 없으면 조용히 (Pages/file:// 무해)
+const Q=new URLSearchParams(location.search);
+const LOCAL_RE=/^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/;
+function parseGh(v){
+  const m=String(v).replace(/^gh:/,"").match(/^([\w.-]+)\/([\w.-]+)(?:@([\w./-]+?))?(?::([\w./-]+\.json))?$/);
+  if(!m) return null;
+  const [,o,r,b,p]=m;
+  return {kind:"gh", label:`${o}/${r}${b?"@"+b:""}${p?":"+p:""}`,
+    url:`https://raw.githubusercontent.com/${o}/${r}/${b||"HEAD"}/${p||"agent-hq.json"}`, every:30000, bust:true};
 }
-pollStatus();
-setInterval(pollStatus,10000);
+function resolveSource(){
+  const gh=Q.get("gh"), src=Q.get("src");
+  if(gh) return parseGh(gh)||{kind:"err", label:gh, error:"owner/repo 형식이 아닙니다"};
+  if(src==="local"){ const port=(Q.get("port")||"4173").replace(/\D/g,"")||"4173";
+    return {kind:"local", label:`127.0.0.1:${port}`, url:`http://127.0.0.1:${port}/api/hq`, every:5000}; }
+  if(src&&LOCAL_RE.test(src)) return {kind:"local", label:src, url:/\.json$|\/api\/hq$/.test(src)?src:src.replace(/\/$/,"")+"/api/hq", every:5000};
+  if(src&&/^https:\/\//.test(src)) return {kind:"url", label:src, url:src, every:30000, bust:true};
+  if(src&&src.startsWith("gh:")) return parseGh(src)||{kind:"err", label:src, error:"형식 오류"};
+  if(src) return {kind:"err", label:src, error:"https:// URL, owner/repo, local 중 하나여야 합니다"};
+  if(LOCAL_RE.test(location.origin)) return {kind:"local", label:"this server", url:"/api/hq", every:5000, fallback:["agent-hq.json","agents.json"]};
+  return {kind:"demo", label:"DEMO", fallback:location.protocol==="file:"?[]:["agent-hq.json","agents.json"]};
+}
+const SRC=resolveSource();
+const SRC_TAG={local:"LIVE",gh:"GITHUB",url:"REMOTE",demo:"DEMO",err:"ERROR"};
+function setConn(cls,msg){
+  const chip=document.getElementById("s-src");
+  chip.innerHTML=`<b class="${cls}" style="color:${cls==="ok"?"#49d17d":cls==="warn"?"#ffd166":"#ff6470"}">●</b>${esc(SRC_TAG[SRC.kind])}`;
+  document.getElementById("connSrc").innerHTML=
+    `<span class="${cls}">●</span> <b>${esc(SRC.label)}</b>${msg?" · "+esc(msg):""}`;
+}
+
+/* 로그: 소스가 주는 실제 이벤트만 표시 (연결되면 가짜 로그 중단) */
+window.__live=false;
+const seenEv=new Set();
+function fmtTime(t){ return new Date(t).toLocaleTimeString("ko-KR",{hour12:false,timeZone:"Asia/Seoul"}); }
+function renderEvents(events){
+  const log=document.getElementById("log");
+  if(!window.__live){ window.__live=true; log.innerHTML=""; }
+  const fresh=events.filter(e=>e&&typeof e.text==="string").map(e=>({...e,time:Number(e.time)||Date.parse(e.time)||0}))
+    .filter(e=>!seenEv.has(e.time+"|"+e.agent+"|"+e.text)).sort((a,b)=>a.time-b.time);
+  for(const e of fresh){
+    seenEv.add(e.time+"|"+e.agent+"|"+e.text);
+    const a=AGENTS.find(x=>x.id===e.agent);
+    const li=document.createElement("li");
+    li.innerHTML=`<span class="t">${fmtTime(e.time)}</span> <b style="color:${a?ACC[a.accent]:"#ffd166"}">${esc(a?a.name:(e.agent||"LIVE"))}</b> ${esc(e.text.slice(0,140))}`;
+    log.prepend(li);
+  }
+  while(log.children.length>32) log.lastChild.remove();
+}
+
+let layoutSig="";
+function ingest(d){
+  const n=normalize(d);
+  if(!n){ setConn("warn","연결됨 · 아직 에이전트가 없습니다 (hq.mjs report로 등록)"); return; }
+  const sig=n.agents.map(a=>a.id+"/"+a.team+"/"+a.floor+"/"+a.slot).join("|")+"#"+n.floors.length;
+  if(sig!==layoutSig){ layoutSig=sig; FLOORS=n.floors; AGENTS=n.agents; initScene(); }
+  else {                                    // 레이아웃 불변 → 캔버스 재초기화 없이 상태만 교체
+    for(const b of n.agents){ const a=AGENTS.find(x=>x.id===b.id); if(a) Object.assign(a,b); }
+    renderStats(); renderTicker(); renderSide();
+  }
+  if(n.name){ document.getElementById("hqsub").textContent=`${n.name} · ${n.agents.length} AGENTS · ${SRC.label}`;
+    document.title=`${n.name} — AGENT HQ`; }
+  if(SRC.kind!=="demo") renderEvents(n.events);
+}
+
+async function fetchJson(url,bust){
+  const r=await fetch(bust?url+(url.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/15000):url,{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+let fails=0, everOk=false, timer=null;
+async function poll(){
+  try{
+    ingest(await fetchJson(SRC.url,SRC.bust));
+    fails=0; everOk=true;
+    if(AGENTS.length) setConn("ok",`${SRC.kind==="local"?"실시간":"동기화"} ${fmtTime(Date.now())}`);
+  }catch(e){
+    fails++;
+    if(!everOk&&SRC.fallback){             // 일반 정적 서버로 연 경우: /api/hq 없음 → 스냅샷/데모
+      clearInterval(timer); SRC.kind="demo"; SRC.label="DEMO"; loadSnapshot(); return; }
+    const hint=SRC.kind==="local"?"node hq.mjs serve 실행 중인지 확인 (Safari는 http://127.0.0.1:4173 직접 접속)"
+             :SRC.kind==="gh"?"리포가 public이고 agent-hq.json이 있는지 확인":"CORS 허용 여부 확인";
+    setConn(fails>2?"err":"warn",`연결 실패 (${e.message}) — ${hint}`);
+  }
+}
+
+initScene();                         // 내장 데이터로 즉시 렌더
+if(SRC.kind==="err") setConn("err",SRC.error);
+else if(SRC.url){ setConn("warn","연결 중…"); poll(); timer=setInterval(poll,SRC.every); }
+else loadSnapshot();
+/* 데모: 같은 폴더의 스냅샷이 있으면 사용, 없으면 내장 데이터 */
+async function loadSnapshot(){
+  setConn("warn","데모 데이터 · 위 입력칸에 owner/repo를 넣어 연결하세요");
+  for(const f of SRC.fallback){ try{ const d=await fetchJson(f); if(applyData(d)){
+    setConn("ok",`로컬 스냅샷 ${f}`); if(d.hq&&typeof d.hq.name==="string") document.getElementById("hqsub").textContent=d.hq.name.slice(0,60); return; } }catch(e){} }
+}
+
+/* connect form + lobby (registry/index.json — GitHub Actions가 생성) */
+document.getElementById("connIn").value=Q.get("gh")||Q.get("src")||"";
+document.getElementById("connForm").onsubmit=e=>{
+  e.preventDefault();
+  const v=document.getElementById("connIn").value.trim();
+  const q=new URLSearchParams();
+  if(!v){}                                     // 비우면 데모로
+  else if(v==="local"||LOCAL_RE.test(v)||/^https:\/\//.test(v)) q.set("src",v);
+  else q.set("gh",v.replace(/^https:\/\/github\.com\//,"").replace(/\/$/,""));
+  location.search=q.toString();
+};
+function lobbyHref(src){
+  if(typeof src!=="string") return null;
+  if(src.startsWith("gh:")) return "?gh="+encodeURIComponent(src.slice(3));
+  if(/^https:\/\//.test(src)) return "?src="+encodeURIComponent(src);
+  return null;
+}
+fetchJson("registry/index.json").then(idx=>{
+  const list=(Array.isArray(idx.entries)?idx.entries:[]).slice(0,200);
+  const cur=SRC.kind==="gh"?"gh:"+SRC.label:Q.get("src");
+  document.getElementById("lobby").innerHTML=list.map(e=>{
+    const href=lobbyHref(e.source); if(!href) return "";
+    return `<a href="${esc(href)}" class="${e.source===cur?"on":""}" title="${esc(e.description||"")}">▸ ${esc(e.name||e.handle)} <i>@${esc(e.handle)}</i></a>`;
+  }).join("");
+}).catch(()=>{});
 </script>
 </body>
 </html>

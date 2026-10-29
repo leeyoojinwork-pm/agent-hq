@@ -20,6 +20,7 @@ PM: **PM Fable** (5F Control). 이 문서가 프로젝트의 단일 진실 소�
 - [x] GitHub 공개 + Pages 배포
 
 **v2.0의 비목표**: 실데이터, 백엔드, 모바일 전용 레이아웃, 멀티 프로젝트.
+(v3에서 실데이터·멀티 빌딩은 M4로 달성. 중앙 백엔드는 여전히 두지 않는다 — 각자의 PC/리포가 데이터 소스.)
 
 ## 마일스톤
 
@@ -54,6 +55,18 @@ PM: **PM Fable** (5F Control). 이 문서가 프로젝트의 단일 진실 소�
 - [ ] 워크스페이스 전환
 - [ ] Pages 데모를 최신 정적 스냅샷으로 갱신
 
+### M4 — 누구나 연결 (v3, 2026-10-29)
+목표: 데모가 아니라, 다른 사람이 자기 멀티에이전트를 연결해 자기 빌딩을 띄우고 공유한다.
+- [x] 데이터 포맷 v1 `agent-hq.json` + JSON Schema (floors 생략 시 team 기준 자동 배정, updatedAt 기반 5/30분 감쇠)
+- [x] `hq.mjs` 커넥터: init / scan / report / serve(POST /api/report, CORS+PNA) / push(GitHub Contents API) / validate
+- [x] 뷰어 소스 전환: `?src=local`, `?gh=owner/repo[@b][:path]`, `?src=https://…`, CONNECT 패널
+- [x] 외부 데이터 XSS 방어 (innerHTML 전부 esc, 인라인 onclick 제거), origin 자유 문자열
+- [x] 로비: `registry/<login>.json` PR → Actions 검증(작성자=파일명, source 스키마) → main에서 index.json 재생성
+- [x] Python SDK (`sdk/python/agent_hq.py`)
+- [ ] 첫 외부 사용자 1명 등록 (로비 PR 머지)
+
+**Exit 기준**: 처음 보는 사람이 docs/CONNECT.md만 보고 10분 안에 `?gh=자기/리포`로 자기 빌딩을 본다.
+
 ## 운영 규칙 (PM 노트)
 
 1. **마일스톤 순서 고정.** M1 끝나기 전에 M2 코드 금지. 반쯤 붙은 실데이터가 최악.
@@ -78,6 +91,12 @@ PM: **PM Fable** (5F Control). 이 문서가 프로젝트의 단일 진실 소�
 4. 교대 후 첫 행동: 체크박스 상태와 리포 실제 상태가 일치하는지 검증
 
 ### 인계 메모
+
+> 2026-10-29 (v3): M4 코드 완료. 렌더 파이프라인(low 384×288, SC=3, 90ms)은 그대로.
+> - 데이터 진입점은 `normalize()` 하나 — 외부 JSON은 여기서 길이 제한·enum 검증·감쇠까지 끝낸다.
+> - 폴링 중 레이아웃(id/team/floor 시그니처)이 같으면 initScene 없이 상태만 갱신.
+> - `/api/status`(M2)는 `/api/hq`로 대체. 기존 `node scan.mjs`/`node serve.mjs`는 래퍼로 계속 동작(출력 파일은 agent-hq.json).
+> - 남은 것: 실제 외부 사용자 등록, 모바일 세로 레이아웃(기존 한계).
 
 > 2026-07-04 (Fable, 2차): M1 코드 완료 + M2 코드 완료.
 > - index.html: initScene()/applyData() 도입, 층 수 동적(H/GROUND/NF 재계산), window.applyData로 콘솔 주입 테스트 가능
