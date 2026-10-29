@@ -71,6 +71,17 @@ localStorage 키 `agent-hq-v2:*` — selected, filter, crt.
 - **serve.mjs**: 정적 서빙 + 상태 판정. `~/.claude/projects/**/*.jsonl` 최근 20개의 tail 64KB에서
   에이전트 이름/id 매칭 → 최근 5분 active / 30분 review / 그 외 idle. 8초 캐시.
 
+## v3 추가분 (2026-10-29) — 외부 연결
+
+- **소스 해석** `resolveSource()`: `?gh=` → raw.githubusercontent(30초, 캐시버스트) / `?src=local|http://127.0.0.1:N` → `/api/hq`(5초) /
+  `?src=https://` → 그대로 / 없음 → 데모(같은 폴더 agent-hq.json·agents.json 스냅샷 시도).
+- **정규화** `normalize(d)`: 모든 외부 필드 길이 제한·enum 검증. floors 없으면 `autoFloors()`(TEAM_ORDER, 층당 4명).
+  `updatedAt`이 있으면 `decay()`로 active→review(5분)→idle(30분).
+- **XSS**: 외부 문자열은 innerHTML 전에 반드시 `esc()`. 캔버스 fillText는 안전. source 복사 버튼은 인라인 onclick 대신 리스너.
+- **origin**: 자유 문자열. 색은 Claude/Codex 고정, 나머지는 해시로 ACC 팔레트에서 선택. 필터 버튼은 실제 origin 목록(최대 6)에서 생성.
+- **hq.mjs serve**: CORS는 뷰어 origin(github.io)과 localhost만 허용 + `Access-Control-Allow-Private-Network`. 다른 origin의 POST는 403.
+  옆에 index.html이 없으면 `/`를 호스팅 뷰어 `?src=http://127.0.0.1:PORT`로 302.
+
 ## 알려진 한계
 
 - 모바일 세로 화면에서 캔버스가 작아짐 — 핀치줌으로 커버, 전용 세로 레이아웃은 미구현
